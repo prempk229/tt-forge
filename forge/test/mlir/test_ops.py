@@ -6,6 +6,8 @@ import os
 
 import pytest
 import torch
+import tensorflow as tf
+import numpy as np
 from torch import nn
 
 import forge
@@ -2036,3 +2038,37 @@ def test_select(shape, dim, begin, length, stride):
     compiled_model = forge.compile(framework_model, sample_inputs=inputs)
 
     verify(inputs, framework_model, compiled_model)
+
+
+@pytest.mark.parametrize(
+    "input1,input2",
+    [
+        (torch.randn([2, 3, 4]), torch.rand([2, 3, 4])),  # both inputs as torch tensors
+        (tf.convert_to_tensor([[2, 7], [7, 4]]), np.array([[12, 4], [7, 9]])),  # 1 forge tensor and 1 numpy array
+        (tf.convert_to_tensor([[2, 7], [7, 4]]), torch.randn([2, 2])),  # 1 forge tesnsor and 1 torch tensor
+        (np.array([1, 2, 3, 4]), np.array([2, 4, 6, 8])),  # both inputs as numpy arrays
+        (
+            torch.randn([2, 4, 6]),
+            tf.random.uniform((2, 4, 6), minval=0, maxval=10, dtype=tf.int32),
+        ),  # 1 torch tensor and 1 tensorflow tensor
+        (
+            tf.random.normal((2, 3), mean=0, stddev=1),
+            tf.convert_to_tensor([[2, 7, 5], [7, 4, 6]]),
+        ),  # 1 tensorflow tensor and 1 forge tensor
+    ],
+)
+def test_input_types(input1, input2):
+    class MaximumOp(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, input_1, input_2):
+            output = torch.maximum(input_1, input_2)
+            return output
+
+    inputs = [input1, input2]
+
+    framework_model = MaximumOp()
+    framework_model.eval()
+
+    forge.compile(framework_model, sample_inputs=inputs)
